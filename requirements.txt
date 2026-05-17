@@ -1,0 +1,21 @@
+# Forqast — Python Dependencies
+# Install: pip install -r requirements.txt
+
+# ── Data & ML ─────────────────────────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+
+# ── Sri Lankan context enrichment ─────────────────────────────────────────────
+ephem>=4.1.5          # astronomical Poya day computation
+requests>=2.31.0      # Calendarific holiday API
+
+# ── Backend ───────────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9   # file uploads (CSV sales data)
+python-dotenv>=1.0.0      # .env file support for API keys
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+pathlib2>=2.3.7

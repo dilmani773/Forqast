@@ -1,0 +1,31 @@
+Forqast — Training Report
+========================================
+Trained at     : 2026-05-17T09:59:56.065211
+Features       : 41
+Best iteration : 389
+
+── Model Performance ──
+MAE            : 68.21 orders
+RMSE           : 162.82 orders
+MAPE           : 43.47%
+Waste Score    : 56.5 / 100
+
+── Business Impact ──
+Est. daily savings : LKR 0
+
+── Top 15 Features ──
+  lag_1                          0.2575
+  roll_4                         0.1713
+  emailer_for_promotion          0.1228
+  roll_8                         0.1157
+  is_promoted                    0.0762
+  homepage_featured              0.0214
+  cui_Continental                0.0193
+  cat_Seafood                    0.0188
+  discount_pct                   0.0131
+  cat_Rice Bowl                  0.0125
+  cat_Sandwich                   0.0116
+  cat_Pizza                      0.0112
+  cat_Biryani                    0.0110
+  checkout_price                 0.0108
+  cat_Pasta                      0.0107

@@ -1,0 +1,48 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+env/
+.env
+.venv
+ENV/
+
+# ── Environment variables (NEVER commit API keys) ─────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── Forqast specific ──────────────────────────────────────────────────────────
+# Raw datasets — too large for git, download from Kaggle
+data/raw/
+data/processed/
+
+# Trained model — large binary, regenerate with train.py
+model/forqast_model.pkl
+
+# SL context cache — auto-regenerated
+data/.cache/
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
