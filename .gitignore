@@ -27,7 +27,7 @@ data/raw/
 data/processed/
 
 # Trained model — large binary, regenerate with train.py
-model/forqast_model.pkl
+# model/forqast_model.pkl
 
 # SL context cache — auto-regenerated
 data/.cache/

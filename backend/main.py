@@ -22,10 +22,17 @@ app = FastAPI(
     version     = "1.0.0",
 )
 
-# Allow React frontend (port 5173) to call the API
+# Allow React frontend — localhost for dev, Vercel for production
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://forqast.vercel.app",
+    "https://forqast-frontend.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins     = ["http://localhost:5173", "http://localhost:3000", "*"],
+    allow_origins     = ALLOWED_ORIGINS,
     allow_credentials = True,
     allow_methods     = ["*"],
     allow_headers     = ["*"],
