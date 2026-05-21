@@ -1,0 +1,132 @@
+.dashboard { display: flex; flex-direction: column; gap: 24px; }
+
+.dash-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dash-sub {
+  color: var(--text2);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.dash-header-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.dish-select { width: 220px; }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px 32px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: var(--accent);
+  opacity: 0.5;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.empty-state h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.empty-state p { color: var(--text2); max-width: 360px; }
+
+.empty-dishes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.empty-dish-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.empty-dish-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Error ── */
+.error-banner {
+  background: var(--red-dim);
+  border: 1px solid rgba(255,95,95,0.3);
+  color: var(--red);
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+/* ── Main grid ── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.dash-chart-col { display: flex; flex-direction: column; gap: 20px; }
+.dash-side-col  { display: flex; flex-direction: column; gap: 20px; }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+/* ── Summary card ── */
+.summary-card { display: flex; flex-direction: column; gap: 12px; }
+
+.summary-text {
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.summary-savings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.savings-amount {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+@media (max-width: 900px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
