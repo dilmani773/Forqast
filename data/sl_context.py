@@ -165,19 +165,36 @@ def _fetch_holidays_api(year: int, api_key: str) -> dict:
 
 def _builtin_holidays(year: int) -> dict:
     """
-    Minimal fixed-date Sri Lankan holidays that don't change year to year.
-    Used as fallback when API key is missing or API is unreachable.
-    Moon-dependent holidays (Vesak, Poson etc.) are handled by Poya logic.
+    Fixed-date Sri Lankan public holidays that are gazetted and don't shift.
+    Buddhist, Christian, and national holidays only.
+
+    Muslim holidays (Ramadan, Eid, Hajj) and Hindu holidays (Deepavali)
+    shift every year based on the lunar calendar — exact dates vary.
+    These are handled via the restaurant owner's custom calendar in the UI,
+    not hardcoded here. This is intentional: a Muslim restaurant owner
+    knows when Ramadan starts in their community. We don't assume.
     """
     fixed = {
+        f"{year}-01-01": "New Year's Day",
         f"{year}-01-14": "Thai Pongal",
         f"{year}-02-04": "Independence Day",
         f"{year}-04-13": "Sinhala & Tamil New Year Eve",
         f"{year}-04-14": "Sinhala & Tamil New Year",
         f"{year}-05-01": "Labour Day",
         f"{year}-05-22": "National Heroes Day",
+        f"{year}-12-24": "Christmas Eve",
         f"{year}-12-25": "Christmas Day",
+        f"{year}-12-26": "Boxing Day",
     }
+
+    # Good Friday — shifts yearly
+    good_friday = {
+        2023: "2023-04-07", 2024: "2024-03-29", 2025: "2025-04-18",
+        2026: "2026-04-03", 2027: "2027-03-26", 2028: "2028-04-14",
+    }
+    if year in good_friday:
+        fixed[good_friday[year]] = "Good Friday"
+
     return {pd.Timestamp(k): v for k, v in fixed.items()}
 
 
@@ -240,6 +257,8 @@ def enrich(
     date_col: str = "date",
     api_key: str = None,
     custom_events: dict = None,
+    ramadan_start: str = None,
+    special_days: dict = None,
 ) -> pd.DataFrame:
     """
     Add Sri Lankan context features to any DataFrame with a date column.
@@ -250,26 +269,59 @@ def enrich(
     date_col      : Name of the date column (default: 'date')
     api_key       : Calendarific API key (or set CALENDARIFIC_API_KEY env var)
     custom_events : dict of {pd.Timestamp: event_name}
-                    Passed from the Forqast UI calendar when a restaurant
-                    owner marks a special day manually.
-
-    Returns
-    -------
-    Enriched DataFrame with columns:
-        day_of_week, is_weekend, is_poya, is_public_holiday,
-        holiday_name, monsoon_type, monsoon_intensity,
-        is_school_term, local_event, demand_modifier
+                    General custom events from the UI calendar.
+    ramadan_start : str "YYYY-MM-DD" — owner confirms actual Ramadan start date.
+                    When set, the full 30-day Ramadan period is automatically
+                    flagged with demand pattern adjustments.
+    special_days  : dict of {pd.Timestamp: {"label": str, "boost": float}}
+                    Owner-defined special days with custom demand boost.
+                    e.g. {"2026-03-15": {"label": "Wedding Catering", "boost": 0.8}}
+                    boost is additive to demand_modifier.
     """
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col])
     dates = df[date_col]
 
-    # Only fetch/compute for years that actually appear in the data
     years = sorted(dates.dt.year.unique().tolist())
-
     poya_days       = get_poya_days(years)
     public_holidays = get_public_holidays(years, api_key=api_key)
     local_events    = dict(custom_events) if custom_events else {}
+
+    # ── Ramadan period ────────────────────────────────────────────────────────
+    # Owner confirms actual start date — we flag the full 30-day period.
+    # Ramadan demand pattern for Muslim restaurants:
+    #   - Lunch orders drop 40–60% (fasting)
+    #   - Iftar (sunset) period spikes 80–120% above normal
+    #   - Net daily modifier: slightly above normal for Muslim restaurants
+    #     because Iftar crowds more than compensate for no-lunch period
+    ramadan_dates = set()
+    if ramadan_start:
+        try:
+            r_start = pd.Timestamp(ramadan_start)
+            for i in range(30):
+                ramadan_dates.add(r_start + pd.Timedelta(days=i))
+            print(f"[Forqast] Ramadan mode: {ramadan_start} → {(r_start + pd.Timedelta(days=29)).date()}")
+        except Exception:
+            pass
+
+    df["is_ramadan"] = dates.isin(ramadan_dates)
+
+    # Ramadan day of month (1–30) — demand shifts across the month
+    # First 10 days: adjustment period, last 10 days: very high (Eid preparation)
+    def ramadan_day(dt):
+        if ramadan_start and dt in ramadan_dates:
+            return (dt - pd.Timestamp(ramadan_start)).days + 1
+        return 0
+    df["ramadan_day"] = dates.map(ramadan_day)
+
+    # ── Special days from owner calendar ──────────────────────────────────────
+    special_labels  = {}
+    special_boosts  = {}
+    if special_days:
+        for k, v in special_days.items():
+            ts = pd.Timestamp(k)
+            special_labels[ts]  = v.get("label", "Special Event")
+            special_boosts[ts]  = float(v.get("boost", 0.3))
 
     df["day_of_week"]       = dates.dt.dayofweek
     df["is_weekend"]        = dates.dt.dayofweek >= 5
@@ -279,17 +331,50 @@ def enrich(
     df["monsoon_type"]      = dates.dt.month.map(MONSOON_TYPE)
     df["monsoon_intensity"] = dates.dt.month.map(MONSOON_INTENSITY)
     df["is_school_term"]    = dates.dt.month.map(is_school_term)
-    df["local_event"]       = dates.map(local_events).fillna("")
+    df["local_event"]       = dates.map({**local_events, **special_labels}).fillna("")
+    df["special_boost"]     = dates.map(special_boosts).fillna(0.0)
 
     modifier = pd.Series(1.0, index=df.index)
     modifier += df["is_weekend"].astype(float)        * 0.20
     modifier -= df["is_poya"].astype(float)           * 0.30
-    modifier += df["is_public_holiday"].astype(float) * 0.15
-    modifier -= (df["monsoon_intensity"] > 0.7).astype(float) * 0.10
     modifier += df["is_school_term"].astype(float)    * 0.10
+    modifier -= (df["monsoon_intensity"] > 0.7).astype(float) * 0.10
     modifier += (df["local_event"] != "").astype(float) * 0.25
 
+    # Owner-defined special day boosts
+    modifier += df["special_boost"]
+
+    # Holiday-specific modifiers
+    holiday = df["holiday_name"]
+    modifier += holiday.isin(["Eid ul-Fitr", "Eid ul-Fitr (Day 2)", "Eid ul-Adha", "Deepavali"]).astype(float) * 0.40
+    modifier += holiday.isin(["Sinhala & Tamil New Year", "Sinhala & Tamil New Year Eve"]).astype(float) * 0.35
+    modifier += holiday.isin(["Christmas Eve", "New Year's Day"]).astype(float) * 0.30
+    modifier += holiday.isin(["Christmas Day", "Good Friday"]).astype(float) * 0.10
+    modifier += holiday.isin(["Independence Day", "Labour Day", "National Heroes Day"]).astype(float) * 0.15
+
+    # ── Ramadan modifier ──────────────────────────────────────────────────────
+    # For Muslim restaurants: net positive (Iftar crowds compensate for no lunch)
+    # Last 10 days of Ramadan: highest demand (Eid preparation, late-night eating)
+    modifier += df["is_ramadan"].astype(float) * 0.15
+    modifier += (df["ramadan_day"] >= 21).astype(float) * 0.20  # last 10 days surge
+
     df["demand_modifier"] = modifier.clip(0.5, 2.0)
+
+    def modifier_to_label(row):
+        m = row["demand_modifier"]
+        if row["is_ramadan"]:
+            day = row["ramadan_day"]
+            if day >= 21:
+                return f"Ramadan Day {day} — Last 10 days. Expect very high Iftar and late-night orders."
+            return f"Ramadan Day {day} — Lunch orders will be low. Iftar (sunset) rush expected."
+        if m >= 1.3:  return "Expect significantly more customers today"
+        if m >= 1.15: return "Expect more customers than usual today"
+        if m >= 1.05: return "Slightly busier than a normal day"
+        if m <= 0.75: return "Expect significantly fewer customers today"
+        if m <= 0.90: return "Quieter than usual — consider reducing prep"
+        return "Normal demand expected today"
+
+    df["demand_label"] = df.apply(modifier_to_label, axis=1)
 
     return df
 

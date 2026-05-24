@@ -167,10 +167,13 @@ export function WasteGauge({ score }) {
 
 export function ContextBadges({ alerts, modifier }) {
   const modColor = modifier >= 1.1 ? "green" : modifier <= 0.9 ? "red" : "blue"
+  const modPct   = Math.round((modifier - 1) * 100)
+  const modText  = modPct > 0 ? `+${modPct}% expected demand` : modPct < 0 ? `${modPct}% expected demand` : "Normal demand expected"
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
       <div className={`badge badge-${modColor}`} style={{ marginBottom:4, alignSelf:"flex-start" }}>
-        Demand modifier: {modifier?.toFixed(2)}×
+        {modText}
       </div>
       {alerts?.length === 0 && (
         <p style={{ color:"var(--text3)", fontSize:13 }}>No special context for this day.</p>

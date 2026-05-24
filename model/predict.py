@@ -167,61 +167,93 @@ def predict_demand(input_row: pd.DataFrame, model) -> float:
 def generate_recommendation(
     predicted_demand: float,
     dish_name:        str,
-    cost_per_unit:    float,    # LKR ingredient cost per dish
-    price_per_unit:   float,    # LKR selling price per dish
-    current_stock:    float,    # units already in stock/prepped
-    sl_context:       dict,     # enriched SL context for target date
-    safety_buffer:    float = 0.10,  # 10% buffer above prediction
+    cost_per_unit:    float,
+    price_per_unit:   float,
+    current_stock:    float,
+    sl_context:       dict,
+    recent_orders:    list = None,   # last 8 weeks — used to compute dish-specific confidence
+    safety_buffer:    float = 0.10,
 ) -> dict:
     """
-    Convert a raw demand prediction into a human-readable recommendation
-    a restaurant owner can act on immediately.
+    Convert a raw demand prediction into a human-readable recommendation.
+    Waste score now varies per dish based on demand stability.
     """
-    # How many to prepare (prediction + safety buffer)
-    units_to_prepare = predicted_demand * (1 + safety_buffer)
+    units_to_prepare  = predicted_demand * (1 + safety_buffer)
+    units_to_order    = max(0, units_to_prepare - current_stock)
+    demand_mod        = sl_context.get("demand_modifier", 1.0)
 
-    # How many to ORDER (subtract what's already in stock)
-    units_to_order = max(0, units_to_prepare - current_stock)
+    # ── Dish-specific waste score ─────────────────────────────────────────────
+    # Based on coefficient of variation (CV) of recent orders.
+    # A dish with stable demand (low CV) gets a high score.
+    # A dish with erratic demand (high CV) gets a lower score.
+    # This means Rice & Curry and Dhal Curry score differently — as they should.
+    if recent_orders and len(recent_orders) >= 3:
+        orders_arr = np.array(recent_orders)
+        mean_ord   = np.mean(orders_arr)
+        std_ord    = np.std(orders_arr)
+        cv         = (std_ord / mean_ord) if mean_ord > 0 else 0.5
+        # Low CV (stable) → high base score. High CV (erratic) → lower base score
+        base_score = max(55, min(88, 90 - cv * 60))
+    else:
+        base_score = 72.0
 
-    # Waste score: how confident the model is (based on SL modifier closeness to 1.0)
-    demand_mod   = sl_context.get("demand_modifier", 1.0)
-    base_score   = 72.0  # model's baseline waste score
-    waste_score  = min(100, base_score + (1.0 - abs(demand_mod - 1.0)) * 15)
+    # Adjust for SL context uncertainty
+    context_adjustment = (1.0 - abs(demand_mod - 1.0)) * 10
+    waste_score = min(100, base_score + context_adjustment)
 
-    # Cost savings vs naive over-ordering (assume naive = 25% over actual)
-    naive_prepare    = predicted_demand * 1.25
-    smart_prepare    = units_to_prepare
-    units_saved      = max(0, naive_prepare - smart_prepare)
-    cost_saved_lkr   = units_saved * cost_per_unit
+    # ── Cost savings ──────────────────────────────────────────────────────────
+    naive_prepare  = predicted_demand * 1.25
+    units_saved    = max(0, naive_prepare - units_to_prepare)
+    cost_saved_lkr = units_saved * cost_per_unit
 
-    # Revenue at risk if we under-order
     stockout_risk_pct = max(0, (predicted_demand - units_to_prepare) / predicted_demand * 100) if predicted_demand > 0 else 0
 
-    # Build context alerts for the UI
+    # ── Human-friendly alerts ─────────────────────────────────────────────────
     alerts = []
+    demand_label = sl_context.get("demand_label", "")
+
     if sl_context.get("is_poya"):
         alerts.append({
             "type":    "poya",
             "level":   "warning",
-            "message": "Poya day — expect lower meat dish demand, higher vegetarian demand",
+            "message": "Poya day — vegetarian dishes sell more, meat dishes sell less",
         })
     if sl_context.get("monsoon_intensity", 0) > 0.7:
         alerts.append({
             "type":    "monsoon",
             "level":   "info",
-            "message": f"Heavy monsoon season — expect lower walk-in traffic, higher delivery orders",
+            "message": "Heavy rain expected — fewer walk-in customers, more delivery orders",
         })
     if sl_context.get("is_public_holiday"):
-        alerts.append({
-            "type":    "holiday",
-            "level":   "info",
-            "message": f"Public holiday: {sl_context.get('holiday_name', '')}",
-        })
+        holiday_name = sl_context.get("holiday_name", "")
+        # Different messages for different holiday types
+        if any(x in holiday_name for x in ["Eid", "Ramadan"]):
+            msg = f"{holiday_name} — Muslim families dining out. Expect higher demand for halal dishes."
+        elif "Deepavali" in holiday_name:
+            msg = f"{holiday_name} — Hindu festival. Sweet dishes and vegetarian food sell more."
+        elif any(x in holiday_name for x in ["New Year", "Avurudu"]):
+            msg = f"{holiday_name} — Sri Lankan New Year! One of the busiest dining days of the year."
+        elif "Christmas" in holiday_name:
+            msg = f"{holiday_name} — Families dining together. Rice, meat dishes, and desserts sell well."
+        elif "Poya" in holiday_name:
+            msg = f"{holiday_name} — Public holiday. Vegetarian dishes preferred today."
+        else:
+            msg = f"Public holiday: {holiday_name}"
+        alerts.append({ "type": "holiday", "level": "info", "message": msg })
+
     if sl_context.get("local_event"):
         alerts.append({
             "type":    "event",
             "level":   "success",
-            "message": f"Local event: {sl_context['local_event']} — expect higher demand",
+            "message": f"{sl_context['local_event']} nearby — expect more customers than usual",
+        })
+
+    # Add demand label as an alert if notable
+    if demand_label and demand_label != "Normal demand expected today":
+        alerts.append({
+            "type":    "forecast",
+            "level":   "info" if demand_mod >= 1.0 else "warning",
+            "message": demand_label,
         })
 
     return {
@@ -235,6 +267,7 @@ def generate_recommendation(
         "cost_saved_lkr":     round(cost_saved_lkr, 2),
         "stockout_risk_pct":  round(stockout_risk_pct, 1),
         "demand_modifier":    round(demand_mod, 2),
+        "demand_label":       demand_label,
         "alerts":             alerts,
         "confidence":         "high" if waste_score >= 75 else "medium" if waste_score >= 60 else "low",
     }
@@ -316,6 +349,7 @@ def forecast_week(
             price_per_unit=checkout_price,
             current_stock=current_stock if day_offset == 0 else 0,
             sl_context=sl_ctx,
+            recent_orders=rolling_orders[-8:],
         )
 
         results.append(rec)
