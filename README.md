@@ -36,7 +36,6 @@ A restaurant owner uploads their past sales CSV, sets prices once, and gets a 7-
 | Context engine | ephem (astronomy), Calendarific API |
 | Backend | FastAPI, uvicorn, Python 3.13 |
 | Frontend | React 18, Vite, Recharts |
-| Deployment | Railway (backend), Vercel (frontend) |
 
 ---
 
