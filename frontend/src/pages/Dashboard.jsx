@@ -189,7 +189,7 @@ export default function Dashboard({ selectedDish, setSelectedDish, uploadedDishe
       <div className="card" style={{padding:"28px 32px"}}>
         <p style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--text3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{getDate()}</p>
         <h1 className="page-title" style={{fontSize:26,marginBottom:6}}>
-          {getGreeting()}. {view==="all" ? "Full kitchen plan" : view==="single" && dish ? `Forecast for ${dish.dish_name}` : "What should you cook tomorrow?"}
+          {getGreeting()}. {view==="all" ? "Full kitchen plan" : view==="single" && dish ? `Forecast for ${dish.dish_name}` : "What would you like to forecast today?"}
         </h1>
         <p style={{color:"var(--text2)",fontSize:14,marginBottom:20,lineHeight:1.6,maxWidth:600}}>
           {view==="home"
