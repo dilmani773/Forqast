@@ -142,10 +142,9 @@ def train_model(X_train, X_val, y_train, y_val):
 # 5. EVALUATE
 # ════════════════════════════════════════════════════════════════════════════
 
-def evaluate(model, X_val, y_val_raw):
+def evaluate(model, X_val, y_val_raw, df_val=None):
     print("\n── Step 4: Evaluation ──")
 
-    # Predict in log space, inverse-transform back to order counts
     y_pred_log = model.predict(X_val)
     y_pred     = np.expm1(y_pred_log).clip(min=0)
     y_true     = y_val_raw.values
@@ -153,19 +152,37 @@ def evaluate(model, X_val, y_val_raw):
     mae  = mean_absolute_error(y_true, y_pred)
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     mape = np.mean(np.abs((y_true - y_pred) / np.maximum(y_true, 1))) * 100
-
-    # Waste reduction score (0–100)
-    # Measures how close our predictions are to actual —
-    # closer = less over-ordering = less waste
     waste_score = max(0, 100 - mape)
 
-    print(f"  MAE          : {mae:.2f}  orders")
-    print(f"  RMSE         : {rmse:.2f}  orders")
-    print(f"  MAPE         : {mape:.2f}%")
-    print(f"  Waste Score  : {waste_score:.1f} / 100")
+    # ── Baseline comparisons ──────────────────────────────────────────────────
+    # Naive 1: predict tomorrow = last week's value (lag_1)
+    # Naive 2: predict tomorrow = rolling 4-week average
+    # Without these baselines, 43% MAPE floats in space.
+    # With them, 43% becomes "34% better than naive" — a real result.
 
-    # Cost savings estimate
-    # Assume avg dish cost = LKR 200, avg over-order without model = 20%
+    if "lag_1" in X_val.columns:
+        naive_lag1   = X_val["lag_1"].values
+        naive_mape1  = np.mean(np.abs((y_true - naive_lag1) / np.maximum(y_true, 1))) * 100
+    else:
+        naive_mape1 = None
+
+    if "roll_4" in X_val.columns:
+        naive_roll   = X_val["roll_4"].values
+        naive_mape2  = np.mean(np.abs((y_true - naive_roll) / np.maximum(y_true, 1))) * 100
+    else:
+        naive_mape2 = None
+
+    print(f"  MAE              : {mae:.2f}  orders")
+    print(f"  RMSE             : {rmse:.2f}  orders")
+    print(f"  MAPE (Forqast)   : {mape:.2f}%")
+    if naive_mape1:
+        improvement1 = ((naive_mape1 - mape) / naive_mape1) * 100
+        print(f"  MAPE (naive lag) : {naive_mape1:.2f}%  →  Forqast is {improvement1:.1f}% better")
+    if naive_mape2:
+        improvement2 = ((naive_mape2 - mape) / naive_mape2) * 100
+        print(f"  MAPE (naive avg) : {naive_mape2:.2f}%  →  Forqast is {improvement2:.1f}% better")
+    print(f"  Waste Score      : {waste_score:.1f} / 100")
+
     avg_cost_lkr    = 200
     baseline_waste  = 0.20
     model_waste     = mape / 100
@@ -174,17 +191,20 @@ def evaluate(model, X_val, y_val_raw):
     est_daily_savings = mean_daily_orders * savings_pct * avg_cost_lkr
 
     print(f"\n  Estimated daily waste savings : LKR {est_daily_savings:,.0f}")
-    print(f"  (Assuming LKR {avg_cost_lkr} avg cost/dish, baseline {baseline_waste*100:.0f}% waste)")
 
     return {
-        "mae": round(mae, 2),
-        "rmse": round(rmse, 2),
-        "mape": round(mape, 2),
-        "waste_score": round(waste_score, 1),
-        "est_daily_savings_lkr": round(est_daily_savings, 0),
-        "best_iteration": model.best_iteration,
-        "n_features": X_val.shape[1],
-        "trained_at": datetime.now().isoformat(),
+        "mae":                    round(mae, 2),
+        "rmse":                   round(rmse, 2),
+        "mape":                   round(mape, 2),
+        "naive_lag_mape":         round(naive_mape1, 2) if naive_mape1 else None,
+        "naive_avg_mape":         round(naive_mape2, 2) if naive_mape2 else None,
+        "improvement_vs_lag_pct": round(improvement1, 1) if naive_mape1 else None,
+        "improvement_vs_avg_pct": round(improvement2, 1) if naive_mape2 else None,
+        "waste_score":            round(waste_score, 1),
+        "est_daily_savings_lkr":  round(est_daily_savings, 0),
+        "best_iteration":         model.best_iteration,
+        "n_features":             X_val.shape[1],
+        "trained_at":             datetime.now().isoformat(),
     }
 
 
@@ -237,6 +257,12 @@ def save_artifacts(model, features, metrics, importance):
         f"MAPE           : {metrics['mape']}%",
         f"Waste Score    : {metrics['waste_score']} / 100",
         "",
+        "── Baseline Comparison ──",
+        f"Naive lag MAPE : {metrics['naive_lag_mape']}%  (predict tomorrow = last week)",
+        f"Naive avg MAPE : {metrics['naive_avg_mape']}%  (predict tomorrow = 4-week avg)",
+        f"Improvement vs lag : {metrics['improvement_vs_lag_pct']}% better than naive",
+        f"Improvement vs avg : {metrics['improvement_vs_avg_pct']}% better than naive",
+        "",
         "── Business Impact ──",
         f"Est. daily savings : LKR {metrics['est_daily_savings_lkr']:,.0f}",
         "",
@@ -262,7 +288,7 @@ def main():
     features, bool_cols             = get_features(df)
     X_train, X_val, y_train, y_val, y_val_raw = split_data(df, features, bool_cols)
     model                           = train_model(X_train, X_val, y_train, y_val)
-    metrics                         = evaluate(model, X_val, y_val_raw)
+    metrics                         = evaluate(model, X_val, y_val_raw, df_val=None)
     importance                      = print_feature_importance(model, features)
     save_artifacts(model, features, metrics, importance)
 

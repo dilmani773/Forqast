@@ -1,6 +1,6 @@
 Forqast — Training Report
 ========================================
-Trained at     : 2026-05-17T09:59:56.065211
+Trained at     : 2026-08-26T20:41:51.928154
 Features       : 41
 Best iteration : 389
 
@@ -9,6 +9,12 @@ MAE            : 68.21 orders
 RMSE           : 162.82 orders
 MAPE           : 43.47%
 Waste Score    : 56.5 / 100
+
+── Baseline Comparison ──
+Naive lag MAPE : 65.28%  (predict tomorrow = last week)
+Naive avg MAPE : 67.16%  (predict tomorrow = 4-week avg)
+Improvement vs lag : 33.4% better than naive
+Improvement vs avg : 35.3% better than naive
 
 ── Business Impact ──
 Est. daily savings : LKR 0

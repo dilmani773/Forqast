@@ -153,19 +153,54 @@ export default function RestaurantCalendar({ onCalendarUpdate }) {
             </div>
 
             {ramadanStart && (
-              <div style={{ background:"rgba(61,220,132,0.08)", border:"1px solid rgba(61,220,132,0.2)", borderRadius:"var(--radius-sm)", padding:"12px 14px", fontSize:12 }}>
-                <p style={{ color:"var(--accent)", fontWeight:500, marginBottom:4 }}>
-                  🌙 Ramadan: {ramadanStart} → {
-                    new Date(new Date(ramadanStart).getTime()+29*24*60*60*1000).toISOString().split("T")[0]
-                  } (30 days)
+              <div style={{ background:"rgba(61,220,132,0.08)", border:"1px solid rgba(61,220,132,0.2)", borderRadius:"var(--radius-sm)", padding:"14px 16px", fontSize:12 }}>
+                <p style={{ color:"var(--accent)", fontWeight:600, marginBottom:10, fontSize:13 }}>
+                  🌙 Ramadan Calendar
                 </p>
-                <p style={{ color:"var(--text2)", lineHeight:1.6 }}>
-                  Forqast will reduce lunch demand forecasts and increase evening (Iftar) demand during this period.
-                  The last 10 days get an extra boost for the Eid preparation rush.
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+                  <div style={{ background:"rgba(0,0,0,0.25)", borderRadius:6, padding:"10px 12px" }}>
+                    <p style={{ color:"var(--text3)", fontSize:10, fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Ramadan starts</p>
+                    <p style={{ color:"var(--accent)", fontWeight:700, fontSize:13 }}>{ramadanStart}</p>
+                  </div>
+                  <div style={{ background:"rgba(0,0,0,0.25)", borderRadius:6, padding:"10px 12px" }}>
+                    <p style={{ color:"var(--text3)", fontSize:10, fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Day 29 (earliest Eid)</p>
+                    <p style={{ color:"var(--amber)", fontWeight:700, fontSize:13 }}>
+                      {new Date(new Date(ramadanStart).getTime()+28*24*60*60*1000).toISOString().split("T")[0]}
+                    </p>
+                  </div>
+                  <div style={{ background:"rgba(0,0,0,0.25)", borderRadius:6, padding:"10px 12px" }}>
+                    <p style={{ color:"var(--text3)", fontSize:10, fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Day 30 (latest Eid)</p>
+                    <p style={{ color:"var(--amber)", fontWeight:700, fontSize:13 }}>
+                      {new Date(new Date(ramadanStart).getTime()+29*24*60*60*1000).toISOString().split("T")[0]}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ background:"rgba(245,166,35,0.08)", border:"1px solid rgba(245,166,35,0.2)", borderRadius:6, padding:"10px 14px", marginBottom:10 }}>
+                  <p style={{ color:"var(--amber)", fontSize:12, lineHeight:1.6 }}>
+                    🌙 Eid ul-Fitr will fall on day 29 or 30 — confirmed by moon sighting.
+                    When Eid is announced, go to <b>Add a Special Day</b> below and mark it.
+                    Forqast will apply maximum demand boost on that confirmed day.
+                  </p>
+                </div>
+
+                {specialDays.some(d=>d.type==="eid") && (
+                  <div style={{ background:"rgba(61,220,132,0.1)", border:"1px solid rgba(61,220,132,0.2)", borderRadius:6, padding:"10px 14px", marginBottom:10 }}>
+                    <p style={{ color:"var(--accent)", fontSize:12, lineHeight:1.6 }}>
+                      ✓ Eid ul-Fitr confirmed and marked —
+                      {" "}{specialDays.find(d=>d.type==="eid")?.date}.
+                      Maximum demand boost applied on that day.
+                    </p>
+                  </div>
+                )}
+
+                <p style={{ color:"var(--text2)", lineHeight:1.6, fontSize:12 }}>
+                  During all 30 days: reduced lunch demand, higher Iftar (evening) demand.
+                  Last 10 days get an extra boost for the Eid preparation rush.
                 </p>
                 {ramadanUpload && (
                   <p style={{ color:"var(--accent)", marginTop:8 }}>
-                    ✓ Last year's Ramadan data loaded — {ramadanUpload.rows_processed} records across {ramadanUpload.dishes_found?.length} dishes. Forqast will use this to personalise your Ramadan forecast.
+                    ✓ Last year's Ramadan sales loaded — {ramadanUpload.rows_processed} records. Used for personalised forecasts.
                   </p>
                 )}
               </div>
